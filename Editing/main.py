@@ -11,6 +11,7 @@ from mbuild.smartservo import smartservo_class
 from mbuild import power_manage_module
 
 
+# ===== PID Class =====
 class PID:
     def __init__(self, Kp, Ki, Kd, setpoint=0):
         self.Kp = Kp
@@ -33,15 +34,16 @@ class PID:
         self.previous_error = 0
 
 
+# ===== Robot Control Class =====
 class Robot:
     def __init__(self):
-        # กำหนดมอเตอร์ตามพอร์ต
+        # Motor mapping
         self.encoder_motor_M6 = encoder_motor_class("M3", "INDEX1")  # Front Left
         self.encoder_motor_M4 = encoder_motor_class("M6", "INDEX1")  # Front Right
         self.encoder_motor_M3 = encoder_motor_class("M4", "INDEX1")  # Back Left
         self.encoder_motor_M2 = encoder_motor_class("M2", "INDEX1")  # Back Right
 
-        # trim ปรับสมดุลล้อ
+        # Trim settings
         self.trim_M6 = 0.90   # FL
         self.trim_M4 = -1.10  # FR
         self.trim_M3 = -0.90  # BL
@@ -63,23 +65,20 @@ class Robot:
         return value if abs(value) > self.deadzone else 0
 
     def set_motor_speed(self, fl, fr, bl, br):
-        self.encoder_motor_M6.set_power(self.clamp_speed(fl * self.trim_M6))  # FL
-        self.encoder_motor_M4.set_power(self.clamp_speed(fr * self.trim_M4))  # FR
-        self.encoder_motor_M3.set_power(self.clamp_speed(bl * self.trim_M3))  # BL
-        self.encoder_motor_M2.set_power(self.clamp_speed(br * self.trim_M2))  # BR
+        self.encoder_motor_M6.set_power(self.clamp_speed(fl * self.trim_M6))
+        self.encoder_motor_M4.set_power(self.clamp_speed(fr * self.trim_M4))
+        self.encoder_motor_M3.set_power(self.clamp_speed(bl * self.trim_M3))
+        self.encoder_motor_M2.set_power(self.clamp_speed(br * self.trim_M2))
 
     def stop(self):
         self.set_motor_speed(0, 0, 0, 0)
 
     def control_system(self):
-        # อ่านค่าจอยสติ๊ก
         lx = self.apply_deadzone(gamepad.get_joystick("Lx"))
         ly = self.apply_deadzone(gamepad.get_joystick("Ly"))
         rx = self.apply_deadzone(gamepad.get_joystick("Rx"))
 
-        vx = lx
-        vy = ly
-        vw = -rx
+        vx, vy, vw = lx, ly, -rx
 
         if self.enable_pid:
             vx = self.pid_x.update(vx)
@@ -91,16 +90,16 @@ class Robot:
         elif gamepad.is_key_pressed("Right"):
             self.set_motor_speed(50, -50, -50, 50)
         elif vx != 0 or vy != 0 or vw != 0:
-            # คำนวณความเร็วล้อ (NovaPi Mecanum)
-            fl = vy + vw - vx   # Front Left
-            fr = vy - vw + vx   # Front Right
-            bl = vy - vw - vx   # Back Left
-            br = vy + vw + vx   # Back Right
+            fl = vy + vw - vx
+            fr = vy - vw + vx
+            bl = vy - vw - vx
+            br = vy + vw + vx
             self.set_motor_speed(fl, fr, bl, br)
         else:
             self.stop()
 
 
+# ===== DC Motor Wrapper =====
 class dc_motor:
     def __init__(self, motor_port):
         self.motor_port = motor_port
@@ -115,20 +114,33 @@ class dc_motor:
         power_expand_board.set_power(self.motor_port, 0)
 
 
+# ===== Motor Instances =====
 top_feed = dc_motor("DC1")
 under2_feed = dc_motor("DC2")
 mid_feed = dc_motor("DC3")
 under_feed = dc_motor("DC6")
-Gripper_port = encoder_motor_class("M5", "INDEX1")
+gripper_port = encoder_motor_class("M5", "INDEX1")
 servo_level_adjustment = smartservo_class("M1", "INDEX1")
 
 
+# ===== Manual Control Class =====
 class manual:
     def __init__(self, mode):
         self.mode = mode
-        self.brushless = False
+        self.Brushless = False
+        self.Brushless2 = False
+        self.plus_pressed = False
+        self.menu_pressed = False
+        self.normal_angle = -2.5     # องศาปกติของ servo
+        self.max_current = 1.5       # ค่ากระแสสูงสุด (Amp)
 
-    def mission(self):
+    def shooter(self):
+        # ===== กัน Servo แดง =====
+        current_val = servo_level_adjustment.get_value("current")
+        if current_val >= self.max_current:
+            servo_level_adjustment.move_to(self.normal_angle, 50)
+
+        # Feeding control
         if gamepad.is_key_pressed("N2"):
             under_feed.set_power(-100)
             under2_feed.set_power(-100)
@@ -143,6 +155,8 @@ class manual:
             under2_feed.set_power(100)
             mid_feed.set_power(100)
             top_feed.set_power(-100)
+
+        # Servo adjustments
         if gamepad.is_key_pressed("Up"):
             servo_level_adjustment.move_to(-15, 80)
         if gamepad.is_key_pressed("Down"):
@@ -150,12 +164,45 @@ class manual:
         if gamepad.is_key_pressed("R_Thumb"):
             servo_level_adjustment.move(5, 25)
         if gamepad.is_key_pressed("L_Thumb"):
-            servo_level_adjustment.move_to(-2.5, 25)
-            
+            servo_level_adjustment.move_to(self.normal_angle, 25)
 
+        # Toggle Brushless with '+'
+        if gamepad.is_key_pressed("+"):
+            if not self.plus_pressed:
+                self.Brushless = not self.Brushless
+                self.Brushless2 = False
+                if self.Brushless:
+                    power_expand_board.set_power("BL1", 100)
+                    power_expand_board.set_power("BL2", 0)
+                else:
+                    power_expand_board.set_power("BL1", 0)
+                    power_expand_board.set_power("BL2", 0)
+                self.plus_pressed = True
+        else:
+            self.plus_pressed = False
+
+        # Toggle Brushless2 with '≡'
+        if gamepad.is_key_pressed("≡"):
+            if not self.menu_pressed:
+                self.Brushless2 = not self.Brushless2
+                self.Brushless = False
+                if self.Brushless2:
+                    power_expand_board.set_power("BL1", 100)
+                    power_expand_board.set_power("BL2", 100)
+                else:
+                    power_expand_board.set_power("BL1", 0)
+                    power_expand_board.set_power("BL2", 0)
+                self.menu_pressed = True
+        else:
+            self.menu_pressed = False
+
+
+# ===== Main Loop =====
 robot = Robot()
+manual_mode = manual("manual")
 
 while True:
     time.sleep(0.01)
     if not power_manage_module.is_auto_mode():
         robot.control_system()
+        manual_mode.shooter()
