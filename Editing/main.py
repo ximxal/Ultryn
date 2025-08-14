@@ -99,105 +99,85 @@ class Robot:
             self.stop()
 
 
-# ===== DC Motor Wrapper =====
-class dc_motor:
-    def __init__(self, motor_port):
-        self.motor_port = motor_port
-
-    def set_power(self, power):
-        power_expand_board.set_power(self.motor_port, power)
-
-    def enable(self, inverse=False):
-        power_expand_board.set_power(self.motor_port, -100 if inverse else 100)
-
-    def disable(self):
-        power_expand_board.set_power(self.motor_port, 0)
-
-
-# ===== Motor Instances =====
-top_feed = dc_motor("DC1")
-under2_feed = dc_motor("DC2")
-mid_feed = dc_motor("DC3")
-under_feed = dc_motor("DC6")
-gripper_port = encoder_motor_class("M5", "INDEX1")
-servo_level_adjustment = smartservo_class("M1", "INDEX1")
-
-
 # ===== Manual Control Class =====
 class manual:
     def __init__(self, mode):
+        self.top_convey = "DC1"
+        self.under2_convey = "DC2"
+        self.mid_convey = "DC3"
+        self.under_convey = "DC6"
+        self.gripper_port = encoder_motor_class("M5", "INDEX1")
+        self.servo_level_adjustment = smartservo_class("M1", "INDEX1")
         self.mode = mode
-        self.Brushless = False
-        self.Brushless2 = False
+        self.BRL1 = False
+        self.BRL2 = False
         self.plus_pressed = False
         self.menu_pressed = False
-        self.normal_angle = -2.5     # องศาปกติของ servo
-        self.max_current = 1.5       # ค่ากระแสสูงสุด (Amp)
+        self.normal_angle = -2.5
+        self.max_current = 1.5
 
     def shooter(self):
-        # ===== กัน Servo แดง =====
-        current_val = servo_level_adjustment.get_value("current")
-        if current_val >= self.max_current:
-            servo_level_adjustment.move_to(self.normal_angle, 50)
+        dc_speed = 100
 
-        # Feeding control
+        current_val = self.servo_level_adjustment.get_value("current")
+        if current_val >= self.max_current:
+            self.servo_level_adjustment.move_to(self.normal_angle, 50)
+
         if gamepad.is_key_pressed("N2"):
-            under_feed.set_power(-100)
-            under2_feed.set_power(-100)
-            mid_feed.set_power(-100)
-        if gamepad.is_key_pressed("R1"):
-            under_feed.set_power(-100)
-            under2_feed.set_power(-100)
-            mid_feed.set_power(-100)
-            top_feed.set_power(100)
+            power_expand_board.set_power(self.under_convey, -dc_speed)
+            power_expand_board.set_power(self.under2_convey, -dc_speed)
+            power_expand_board.set_power(self.mid_convey, -dc_speed)
+            power_expand_board.set_power(self.top_convey, 0)
+        elif gamepad.is_key_pressed("R1"):
+            power_expand_board.set_power(self.under_convey, -dc_speed)
+            power_expand_board.set_power(self.under2_convey, -dc_speed)
+            power_expand_board.set_power(self.mid_convey, -dc_speed)
+            power_expand_board.set_power(self.top_convey, dc_speed)
         elif gamepad.is_key_pressed("L1"):
-            under_feed.set_power(100)
-            under2_feed.set_power(100)
-            mid_feed.set_power(100)
-            top_feed.set_power(-100)
+            power_expand_board.set_power(self.under_convey, dc_speed)
+            power_expand_board.set_power(self.under2_convey, dc_speed)
+            power_expand_board.set_power(self.mid_convey, dc_speed)
+            power_expand_board.set_power(self.top_convey, -dc_speed)
+        else:
+            power_expand_board.set_power(self.under_convey, 0)
+            power_expand_board.set_power(self.under2_convey, 0)
+            power_expand_board.set_power(self.mid_convey, 0)
+            power_expand_board.set_power(self.top_convey, 0)
 
         # Servo adjustments
         if gamepad.is_key_pressed("Up"):
-            servo_level_adjustment.move_to(-15, 80)
+            self.servo_level_adjustment.move_to(-15, 80)
         if gamepad.is_key_pressed("Down"):
-            servo_level_adjustment.move_to(3, 80)
+            self.servo_level_adjustment.move_to(3, 80)
         if gamepad.is_key_pressed("R_Thumb"):
-            servo_level_adjustment.move(5, 25)
+            self.servo_level_adjustment.move(5, 25)
         if gamepad.is_key_pressed("L_Thumb"):
-            servo_level_adjustment.move_to(self.normal_angle, 25)
+            self.servo_level_adjustment.move_to(self.normal_angle, 25)
 
-        # Toggle Brushless with '+'
-        if gamepad.is_key_pressed("+"):
-            if not self.plus_pressed:
-                self.Brushless = not self.Brushless
-                self.Brushless2 = False
-                if self.Brushless:
-                    power_expand_board.set_power("BL1", 100)
-                    power_expand_board.set_power("BL2", 0)
-                else:
-                    power_expand_board.set_power("BL1", 0)
-                    power_expand_board.set_power("BL2", 0)
-                self.plus_pressed = True
-        else:
+
+        if gamepad.is_key_pressed("+") and not self.plus_pressed:
+            self.BRL1 = not self.BRL1
+            self.BRL2 = False
+            power_expand_board.set_power("BL1", 100 if self.BRL1 else 0)
+            power_expand_board.set_power("BL2", 0)
+            self.plus_pressed = True
+        elif not gamepad.is_key_pressed("+"):
             self.plus_pressed = False
 
-        # Toggle Brushless2 with '≡'
-        if gamepad.is_key_pressed("≡"):
-            if not self.menu_pressed:
-                self.Brushless2 = not self.Brushless2
-                self.Brushless = False
-                if self.Brushless2:
-                    power_expand_board.set_power("BL1", 100)
-                    power_expand_board.set_power("BL2", 100)
-                else:
-                    power_expand_board.set_power("BL1", 0)
-                    power_expand_board.set_power("BL2", 0)
-                self.menu_pressed = True
-        else:
+        if gamepad.is_key_pressed("≡") and not self.menu_pressed:
+            self.BRL2 = not self.BRL2
+            self.BRL1 = False
+            if self.BRL2:
+                power_expand_board.set_power("BL1", 100)
+                power_expand_board.set_power("BL2", 100)
+            else:
+                power_expand_board.set_power("BL1", 0)
+                power_expand_board.set_power("BL2", 0)
+            self.menu_pressed = True
+        elif not gamepad.is_key_pressed("≡"):
             self.menu_pressed = False
 
 
-# ===== Main Loop =====
 robot = Robot()
 manual_mode = manual("manual")
 
