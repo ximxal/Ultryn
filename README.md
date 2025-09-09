@@ -7,11 +7,11 @@ The latest code update was released on **August 31, 2025**.
 - Supports both **Python code** and **Block-based code**.  
 - Some block functions are simplified or replaced with alternative logic.  
 - Uses **new theoretical calculations** (developed by `aut`).  
-- Red defense system (`กันโซโวแดง`).  
+- Red defense system.  
 - Overheating prevention system (currently disabled).  
 
 ## Source Code
-- Main Python implementation: [aespa.py](https://github.com/ximxal/Ultryn/blob/main/aespa.py)  
+- Main Python Full Code: [aespa.py](https://github.com/ximxal/Ultryn/blob/main/aespa.py)  
 - Additional image reference (after line 110): [View here](https://ibb.co/hRvkBYfv)  
 
 ## Access to Full Code
