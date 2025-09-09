@@ -109,3 +109,4 @@ class manual:
         self.normal_angle = -2.5
         self.max_current = 1.5
 # pay 999999 robux for full codes
+# see more full codes https://github.com/ximxal/Ultryn/blob/main/README.md
